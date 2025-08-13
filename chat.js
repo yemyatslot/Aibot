@@ -1,73 +1,54 @@
-import { useState } from "react";
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-export default function Home() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
+  try {
+    // ✅ In Next.js, req.body is already parsed if Content-Type is JSON
+    const { message } = req.body;
 
-  const addMessage = (sender, text) => {
-    setMessages((prev) => [...prev, { sender, text }]);
-  };
-
-  const sendMessage = async () => {
-    if (!input.trim()) return;
-
-    // Show user's message
-    addMessage("user", input);
-    const userMessage = input;
-    setInput("");
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
-      });
-
-      const data = await res.json();
-      addMessage("ai", data.reply || "(No reply)");
-    } catch (err) {
-      console.error(err);
-      addMessage("ai", "(Error connecting to AI)");
+    // If no message, return error
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Invalid message" });
     }
-  };
 
-  return (
-    <div style={{ fontFamily: "Arial, sans-serif", padding: 20 }}>
-      <h1>Talk to My AI</h1>
+    // Call OpenAI
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        input: [
+          {
+            role: "system",
+            content: [{ type: "text", text: "You are a friendly assistant. Always greet politely and offer help." }],
+          },
+          {
+            role: "user",
+            content: [{ type: "text", text: message }],
+          },
+        ],
+      }),
+    });
 
-      {/* Chat box */}
-      <div
-        style={{
-          border: "1px solid #ccc",
-          padding: 10,
-          height: 300,
-          overflowY: "auto",
-          marginBottom: 10,
-        }}
-      >
-        {messages.map((msg, index) => (
-          <p key={index}>
-            <strong style={{ color: msg.sender === "user" ? "blue" : "green" }}>
-              {msg.sender}:
-            </strong>{" "}
-            {msg.text}
-          </p>
-        ))}
-      </div>
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("OpenAI API error:", errText);
+      return res.status(500).json({ error: "Failed to connect to AI" });
+    }
 
-      {/* Input */}
-      <div style={{ display: "flex", gap: "5px" }}>
-        <input
-          type="text"
-          placeholder="Type something..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          style={{ flex: 1, padding: 8 }}
-        />
-        <button onClick={sendMessage} style={{ padding: "8px 15px" }}>
-          Send
-        </button>
-      </div>
-    </div>
-  );
+    const data = await response.json();
+
+    // ✅ Correct path for GPT-4o-mini output
+    const reply = data.output?.[0]?.content?.[0]?.text || "(No reply)";
+
+    res.status(200).json({ reply });
+
+  } catch (error) {
+    console.error("Server error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
 }
