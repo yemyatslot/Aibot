@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>My AI Chat</title>
+<style>
+  body { font-family: sans-serif; max-width: 500px; margin: auto; }
+  #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; }
+  input { width: 80%; padding: 5px; }
+  button { padding: 5px; }
+</style>
+</head>
+<body>
+<h1>Talk to My AI</h1>
+<div id="chat"></div>
+<input id="msg" placeholder="Type something..." />
+<button onclick="sendMsg()">Send</button>
+
+<script>
+async function sendMsg() {
+  const msg = document.getElementById('msg').value;
+  if (!msg) return;
+
+  document.getElementById('chat').innerHTML += `<div><b>You:</b> ${msg}</div>`;
+
+  const res = await fetch("https://YOUR_VERCEL_APP.vercel.app/api/chat", {
+    method: "POST",
+    body: JSON.stringify({ message: msg })
+  });
+  const data = await res.json();
+  
+  const reply = data.output_text || data.output?.[0]?.content?.[0]?.text || "(No reply)";
+  document.getElementById('chat').innerHTML += `<div><b>AI:</b> ${reply}</div>`;
+}
+</script>
+</body>
+</html>
